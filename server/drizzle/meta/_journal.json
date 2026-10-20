@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792318528173,
+      "tag": "0000_oval_patriot",
+      "breakpoints": true
+    }
+  ]
+}

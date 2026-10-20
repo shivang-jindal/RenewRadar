@@ -1,0 +1,53 @@
+{
+  "name": "renewradar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RenewRadar - subscription and renewal management for individuals and small teams.",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "build:shared": "npm run build -w @renewradar/shared",
+    "build:server": "npm run build -w @renewradar/server",
+    "build:client": "npm run build -w @renewradar/client",
+    "build": "npm run build:shared && npm run build:server && npm run build:client",
+    "typecheck": "npm run build:shared && npm run typecheck -w @renewradar/server && npm run typecheck -w @renewradar/client",
+    "lint": "eslint .",
+    "test": "npm run build:shared && vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "db:generate": "npm run db:generate -w @renewradar/server",
+    "db:migrate": "npm run db:migrate -w @renewradar/server",
+    "db:seed": "npm run db:seed -w @renewradar/server",
+    "dev:server": "npm run dev -w @renewradar/server",
+    "dev:client": "npm run dev -w @renewradar/client",
+    "dev:worker": "npm run worker -w @renewradar/server",
+    "dev": "node scripts/dev.mjs",
+    "start": "npm run start -w @renewradar/server",
+    "smoke": "node scripts/smoke.mjs",
+    "verify": "node scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.10.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.17.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.19.1",
+    "vite": "^6.0.7",
+    "vitest": "^3.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
+  }
+}

@@ -1,0 +1,438 @@
+/** Workspace settings, team and audit trail. */
+
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { ROLES, ROLE_LABELS, type Role } from '@renewradar/shared';
+
+import { api, ApiError } from '../lib/api';
+import { formatDateTime } from '../lib/format';
+import { useSession } from '../lib/session';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  PageHeader,
+  Select,
+} from '../components/ui';
+
+interface OrganizationResponse {
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    countryCode: string;
+    timezone: string;
+    baseCurrency: string;
+    createdAt: string;
+  };
+  role: string;
+  permissions: string[];
+  settings: {
+    quietHoursStart: string | null;
+    quietHoursEnd: string | null;
+    reminderTimeLocal: string;
+    remindersPaused: boolean;
+    defaultRenewalReminderDays: number;
+    defaultTrialReminderDays: number;
+    defaultCancellationReminderDays: number;
+    fiscalYearStartMonth: number;
+  };
+}
+
+interface Member {
+  id: string;
+  email: string;
+  displayName: string | null;
+  role: string;
+  status: string;
+  joinedAt: string | null;
+}
+
+interface AuditEntry {
+  id: string;
+  action: string;
+  entityType: string | null;
+  actorEmail: string | null;
+  createdAt: string;
+}
+
+export function SettingsPage() {
+  const { activeOrganizationId, permissions, signOut, user } = useSession();
+  const queryClient = useQueryClient();
+
+  const canManageSettings = permissions.includes('settings.manage');
+  const canManageMembers = permissions.includes('member.manage');
+
+  const [name, setName] = useState<string | null>(null);
+  const [reminderTimeLocal, setReminderTimeLocal] = useState<string | null>(null);
+  const [remindersPaused, setRemindersPaused] = useState<boolean | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'member' | 'viewer'>('member');
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+
+  const organization = useQuery({
+    queryKey: ['renewradar', activeOrganizationId, 'organization'],
+    queryFn: () => api.get<OrganizationResponse>(`/${activeOrganizationId}`),
+    enabled: Boolean(activeOrganizationId),
+  });
+
+  const members = useQuery({
+    queryKey: ['renewradar', activeOrganizationId, 'members'],
+    queryFn: () => api.get<{ members: Member[] }>(`/${activeOrganizationId}/members`),
+    enabled: Boolean(activeOrganizationId),
+  });
+
+  const audit = useQuery({
+    queryKey: ['renewradar', activeOrganizationId, 'audit'],
+    queryFn: () =>
+      api.get<{ entries: AuditEntry[] }>(`/${activeOrganizationId}/audit?page=1&pageSize=50`),
+    enabled: Boolean(activeOrganizationId && permissions.includes('audit.view')),
+  });
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['renewradar', activeOrganizationId] });
+  };
+
+  const saveOrganization = useMutation({
+    mutationFn: () =>
+      api.patch(`/${activeOrganizationId}`, {
+        name: (name ?? organization.data?.organization.name ?? '').trim(),
+      }),
+    onSuccess: () => {
+      setError(null);
+      setNotice('Workspace details saved.');
+      invalidate();
+    },
+    onError: (cause) => {
+      setNotice(null);
+      setError(cause instanceof ApiError ? cause.message : 'Could not save.');
+    },
+  });
+
+  const saveSettings = useMutation({
+    mutationFn: () =>
+      api.patch(`/${activeOrganizationId}/settings/reminders`, {
+        reminderTimeLocal: reminderTimeLocal ?? organization.data?.settings.reminderTimeLocal ?? '09:00',
+        remindersPaused: remindersPaused ?? organization.data?.settings.remindersPaused ?? false,
+      }),
+    onSuccess: () => {
+      setError(null);
+      setNotice('Reminder settings saved.');
+      invalidate();
+    },
+    onError: (cause) => {
+      setNotice(null);
+      setError(cause instanceof ApiError ? cause.message : 'Could not save reminder settings.');
+    },
+  });
+
+  const invite = useMutation({
+    mutationFn: () =>
+      api.post<{ invitation: { acceptUrl?: string; emailed: boolean } }>(
+        `/${activeOrganizationId}/members/invitations`,
+        { email: inviteEmail.trim(), role: inviteRole },
+      ),
+    onSuccess: (data) => {
+      setError(null);
+      setInviteEmail('');
+      setInviteUrl(data.invitation.acceptUrl ?? null);
+      setNotice(
+        data.invitation.emailed
+          ? 'Invitation queued for delivery.'
+          : 'Invitation created. No email provider is configured, so share the link instead.',
+      );
+      invalidate();
+    },
+    onError: (cause) => {
+      setNotice(null);
+      setError(cause instanceof ApiError ? cause.message : 'Could not create the invitation.');
+    },
+  });
+
+  const changeRole = useMutation({
+    mutationFn: ({ memberId, nextRole }: { memberId: string; nextRole: string }) =>
+      api.patch(`/${activeOrganizationId}/members/${memberId}`, { role: nextRole }),
+    onSuccess: invalidate,
+  });
+
+  const removeMember = useMutation({
+    mutationFn: (memberId: string) => api.del(`/${activeOrganizationId}/members/${memberId}`),
+    onSuccess: invalidate,
+  });
+
+  if (organization.isError) {
+    return (
+      <>
+        <PageHeader title="Settings" />
+        <Card>
+          <ErrorState message="Could not load the workspace." onRetry={() => void organization.refetch()} />
+        </Card>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PageHeader title="Settings" description="Workspace, reminders, team and audit trail." />
+
+      {error ? (
+        <p role="alert" className="mb-4 text-[13px] text-[color:var(--color-danger)]">{error}</p>
+      ) : null}
+      {notice ? (
+        <p role="status" className="mb-4 text-[13px] text-[color:var(--color-success)]">{notice}</p>
+      ) : null}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Workspace">
+          <form
+            className="space-y-4"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveOrganization.mutate();
+            }}
+          >
+            <Field label="Workspace name" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={name ?? organization.data?.organization.name ?? ''}
+                  disabled={!canManageSettings}
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                />
+              )}
+            </Field>
+            <dl className="grid gap-2 text-[13px] sm:grid-cols-2">
+              <div>
+                <dt className="text-ink-muted">Base currency</dt>
+                <dd className="text-ink">{organization.data?.organization.baseCurrency}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-muted">Timezone</dt>
+                <dd className="text-ink">{organization.data?.organization.timezone}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-muted">Your role</dt>
+                <dd className="text-ink">{organization.data?.role ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-muted">Created</dt>
+                <dd className="tabular">{formatDateTime(organization.data?.organization.createdAt)}</dd>
+              </div>
+            </dl>
+            {canManageSettings ? (
+              <Button type="submit" variant="primary" loading={saveOrganization.isPending}>Save</Button>
+            ) : (
+              <p className="text-[13px] text-ink-muted">Your role cannot change workspace settings.</p>
+            )}
+          </form>
+        </Card>
+
+        <Card title="Reminder settings">
+          <form
+            className="space-y-4"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveSettings.mutate();
+            }}
+          >
+            <Field label="Reminder time" hint="Local time at which reminders are evaluated.">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="time"
+                  disabled={!canManageSettings}
+                  value={
+                    reminderTimeLocal ??
+                    organization.data?.settings.reminderTimeLocal ??
+                    '09:00'
+                  }
+                  onChange={(event) => setReminderTimeLocal(event.target.value)}
+                />
+              )}
+            </Field>
+            <label className="flex items-center gap-2 text-[13px] text-ink">
+              <input
+                type="checkbox"
+                disabled={!canManageSettings}
+                checked={
+                  remindersPaused ?? organization.data?.settings.remindersPaused ?? false
+                }
+                onChange={(event) => setRemindersPaused(event.target.checked)}
+              />
+              Pause all reminders
+            </label>
+            <dl className="space-y-1.5 text-[13px]">
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-muted">Quiet hours</dt>
+                <dd className="tabular text-ink">
+                  {organization.data?.settings.quietHoursStart ?? '—'} –{' '}
+                  {organization.data?.settings.quietHoursEnd ?? '—'}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-muted">Renewal reminder</dt>
+                <dd className="tabular text-ink">
+                  {organization.data?.settings.defaultRenewalReminderDays ?? '—'} days before
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-muted">Trial reminder</dt>
+                <dd className="tabular text-ink">
+                  {organization.data?.settings.defaultTrialReminderDays ?? '—'} days before
+                </dd>
+              </div>
+            </dl>
+            {canManageSettings ? (
+              <Button type="submit" variant="primary" loading={saveSettings.isPending}>Save</Button>
+            ) : null}
+          </form>
+        </Card>
+      </div>
+
+      <Card className="mt-4" title="Invite a teammate">
+        {canManageMembers ? (
+          <form
+            className="flex flex-wrap items-end gap-3"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              invite.mutate();
+            }}
+          >
+            <div className="min-w-56 flex-1">
+              <Field label="Email" required>
+                {({ id }) => (
+                  <Input id={id} type="email" value={inviteEmail}
+                    onChange={(event) => setInviteEmail(event.target.value)} required />
+                )}
+              </Field>
+            </div>
+            <Field label="Role" required>
+              {({ id }) => (
+                <Select id={id} value={inviteRole}
+                  onChange={(event) => setInviteRole(event.target.value as 'admin' | 'member' | 'viewer')}>
+                  {(['admin', 'member', 'viewer'] as const).map((value) => (
+                    <option key={value} value={value}>{ROLE_LABELS[value]}</option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Button type="submit" variant="primary" loading={invite.isPending}>Send invitation</Button>
+            {inviteUrl ? (
+              <p className="w-full break-all rounded-lg border border-line bg-surface-sunken p-3 text-xs text-ink-muted">
+                Share this link directly; it is shown once. {inviteUrl}
+              </p>
+            ) : null}
+          </form>
+        ) : (
+          <p className="text-[13px] text-ink-muted">Your role cannot invite teammates.</p>
+        )}
+      </Card>
+
+      <Card className="mt-4" title="Team">
+        {members.isLoading ? (
+          <p className="text-[13px] text-ink-muted">Loading…</p>
+        ) : members.isError ? (
+          <ErrorState message="Could not load members." onRetry={() => void members.refetch()} />
+        ) : (members.data?.members ?? []).length === 0 ? (
+          <EmptyState title="No members" description="This workspace has no members." />
+        ) : (
+          <table className="w-full text-left text-[13px]">
+            <caption className="sr-only">Workspace members</caption>
+            <thead>
+              <tr className="border-b border-line text-xs text-ink-muted uppercase">
+                <th scope="col" className="py-2 font-semibold">Member</th>
+                <th scope="col" className="py-2 font-semibold">Role</th>
+                <th scope="col" className="py-2 font-semibold">Status</th>
+                <th scope="col" className="py-2 font-semibold">Joined</th>
+                <th scope="col" className="py-2 text-right font-semibold"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {(members.data?.members ?? []).map((member) => (
+                <tr key={member.id} className="border-b border-line last:border-0">
+                  <td className="py-2">
+                    <span className="block text-ink">{member.displayName ?? member.email}</span>
+                    <span className="block text-xs text-ink-muted">{member.email}</span>
+                  </td>
+                  <td className="py-2">
+                    {canManageMembers && member.role !== 'owner' ? (
+                      <Select aria-label={`Role for ${member.email}`} value={member.role}
+                        onChange={(event) => changeRole.mutate({ memberId: member.id, nextRole: event.target.value })}>
+                        {(['admin', 'member', 'viewer'] as const).map((value) => (
+                          <option key={value} value={value}>{ROLE_LABELS[value]}</option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <span>{ROLE_LABELS[member.role as Role] ?? member.role}</span>
+                    )}
+                  </td>
+                  <td className="py-2">
+                    <Badge tone={member.status === 'active' ? 'success' : 'neutral'}>{member.status}</Badge>
+                  </td>
+                  <td className="tabular py-2">{formatDateTime(member.joinedAt)}</td>
+                  <td className="py-2 text-right">
+                    {canManageMembers && member.role !== 'owner' ? (
+                      <Button size="sm" variant="ghost" loading={removeMember.isPending}
+                        onClick={() => removeMember.mutate(member.id)}>
+                        Remove
+                      </Button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {permissions.includes('audit.view') ? (
+        <Card className="mt-4" title="Audit trail" description="Every change, with who made it.">
+          {audit.isError ? (
+            <ErrorState message="Could not load the audit trail." onRetry={() => void audit.refetch()} />
+          ) : (audit.data?.entries ?? []).length === 0 ? (
+            <EmptyState title="Nothing recorded yet" description="The audit trail is empty." />
+          ) : (
+            <ul className="divide-y divide-line">
+              {(audit.data?.entries ?? []).map((entry) => (
+                <li key={entry.id} className="flex items-baseline justify-between gap-3 py-2">
+                  <span className="min-w-0">
+                    <span className="block text-[13px] text-ink">{entry.action.replace(/[._]/g, ' ')}</span>
+                    <span className="block text-xs text-ink-muted">
+                      {entry.actorEmail ?? 'system'}{entry.entityType ? ` · ${entry.entityType}` : ''}
+                    </span>
+                  </span>
+                  <span className="tabular shrink-0 text-xs text-ink-subtle">
+                    {formatDateTime(entry.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      ) : null}
+
+      <Card className="mt-4" title="Your account">
+        <p className="text-[13px] text-ink-muted">
+          Signed in as {user?.email}. RenewRadar stores no payment card details; a payment
+          method is only ever a label you choose.
+        </p>
+        <Button className="mt-3" variant="secondary" onClick={() => void signOut()}>Sign out</Button>
+      </Card>
+
+      <p className="mt-4 text-xs text-ink-subtle">
+        Roles: {ROLES.map((value) => ROLE_LABELS[value]).join(', ')}.
+      </p>
+    </>
+  );
+}
