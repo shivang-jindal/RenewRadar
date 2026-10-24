@@ -2,8 +2,31 @@
   "name": "renewradar",
   "version": "1.0.0",
   "private": true,
-  "description": "RenewRadar - subscription and renewal management for individuals and small teams.",
-  "license": "SEE LICENSE IN LICENSE",
+  "description": "RenewRadar - subscription and renewal management for individuals and small teams. Flexible recurrence (cron/RRULE), budget alerts, attachment storage, CSV import/export, calendar + list views, reminder chains with escalation.",
+  "license": "MIT",
+  "homepage": "https://github.com/shivang-jindal/RenewRadar#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shivang-jindal/RenewRadar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shivang-jindal/RenewRadar/issues"
+  },
+  "keywords": [
+    "subscription",
+    "renewal",
+    "reminder",
+    "budget",
+    "recurrence",
+    "rrrule",
+    "csv",
+    "multi-currency",
+    "saas",
+    "react",
+    "express",
+    "drizzle",
+    "typescript"
+  ],
   "engines": {
     "node": ">=20.11"
   },
