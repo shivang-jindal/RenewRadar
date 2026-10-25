@@ -15,8 +15,9 @@ import { permissionsForRole, type Role } from '@renewradar/shared';
 
 import type { AppDatabase } from '../db/client.js';
 import { memberships, organizations, passwordResetTokens, sessions, users } from '../db/schema.js';
-import { badRequest, conflict, notFound, unauthenticated, unprocessable } from '../errors.js';
+import { badRequest, conflict, integrationUnavailable, notFound, unauthenticated, unprocessable } from '../errors.js';
 import { hashPassword, randomToken, sha256Hex, verifyPassword } from '../lib/crypto.js';
+import { GoogleTokenError, verifyFirebaseIdToken, type GoogleIdentity } from '../lib/firebase.js';
 
 export interface IssuedSession {
   token: string;
@@ -34,6 +35,7 @@ export class AuthService {
   constructor(
     private readonly db: AppDatabase,
     private readonly sessionTtlHours: number,
+    private readonly firebaseProjectId: string | null = null,
   ) {}
 
   async register(input: {
@@ -76,6 +78,62 @@ export class AuthService {
     if (!user || !user.passwordHash || !ok) {
       throw unauthenticated('Email or password is incorrect.');
     }
+    if (user.disabledAt) {
+      throw unauthenticated('This account has been disabled.');
+    }
+
+    await this.db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+    const session = await this.createSession(user.id, input.meta);
+    return { user: toSessionUser(user), session };
+  }
+
+  /**
+   * Signs in with a Firebase ID token obtained from a Google popup.
+   *
+   * The token is the only credential: it is verified against Google's published
+   * keys and this project before any claim is used. Accounts are matched by
+   * verified email, so a person who already signs in with a password keeps the
+   * same account. A Google-created account has no password hash at all, so it
+   * cannot later be entered through the password form.
+   */
+  async signInWithGoogle(input: {
+    idToken: string;
+    meta?: { ipAddress?: string | null; userAgent?: string | null };
+  }): Promise<{ user: SessionUser; session: IssuedSession }> {
+    if (!this.firebaseProjectId) {
+      throw integrationUnavailable('Google sign-in is not configured on this server.');
+    }
+
+    let identity: GoogleIdentity;
+    try {
+      identity = await verifyFirebaseIdToken(input.idToken, this.firebaseProjectId);
+    } catch (error) {
+      if (error instanceof GoogleTokenError) {
+        throw unauthenticated('Google sign-in could not be verified. Please try again.');
+      }
+      throw error;
+    }
+
+    const email = identity.email;
+    const rows = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
+    let user = rows[0];
+
+    if (!user) {
+      await this.db
+        .insert(users)
+        .values({
+          email,
+          passwordHash: null,
+          displayName: identity.displayName ?? email.split('@')[0]!.slice(0, 120),
+        })
+        .onConflictDoNothing();
+      const [created] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (!created) {
+        throw unauthenticated('Google sign-in could not be completed. Please try again.');
+      }
+      user = created;
+    }
+
     if (user.disabledAt) {
       throw unauthenticated('This account has been disabled.');
     }
