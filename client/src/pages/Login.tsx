@@ -42,7 +42,7 @@ export function LoginPage() {
   return (
     <AuthLayout
       title="Sign in to RenewRadar"
-      description="Invoice, track payments and follow up on overdue balances."
+      description="See every renewal and notice window before it costs you, with the owner and the numbers in one place."
       footer={
         <>
           No account yet?{' '}
