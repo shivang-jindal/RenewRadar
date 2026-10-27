@@ -21,7 +21,7 @@
 - **Attachments**: Invoices, contracts, receipts (stored encrypted)
 - **Import/Export**: CSV + JSON with validation
 - **Calendar + List Views**: Month/week/agenda views
-- **195 Tests**: API, domain, reminders, recurrence, money, CSV, import (all passing)
+- **201 Tests**: API, domain, reminders, recurrence, money, CSV, import (all passing)
 
 ---
 
@@ -39,6 +39,7 @@ Configure `.env` (copy `.env.example`):
 DATABASE_URL="postgresql://..."  # or omit for PGlite
 ENCRYPTION_KEY="64-char-hex-key"
 EMAIL_PROVIDER=disabled  # smtp | disabled | log
+FIREBASE_PROJECT_ID=your-project  # enables Google sign-in (see below)
 ```
 
 ---
@@ -55,7 +56,7 @@ RenewRadar/
 
 **Stack**: React 18 · Vite 6 · TypeScript · Tailwind v4 · React Router · TanStack Query  
 **Backend**: Express 4 · Zod · Drizzle ORM · PGlite (embedded PostgreSQL)  
-**Auth**: Argon2id · opaque 256-bit tokens · HTTP-only cookies  
+**Auth**: Google sign-in · server-verified Firebase ID tokens · HTTP-only session cookies  
 **Recurrence**: RRULE (RFC 5545) + cron parser  
 **Money**: Integer minor units, 30+ currencies, no float math  
 **Jobs**: DB-backed queue (`FOR UPDATE SKIP LOCKED`) · separate worker
@@ -96,8 +97,19 @@ account or client secret is stored.
 Vite reads these values at build time: restart the dev server or rebuild the
 client after changing them.
 
-With no Firebase values the button is rendered disabled with a clear note, and the
-API refuses Google sign-in; email and password sign-in keeps working.
+**Google is the only sign-in method in the web app.** There is no registration
+form, password form, "forgot password" page or reset link. An account is created
+the first time someone signs in with Google and is matched by the verified email
+address, so signing in again always reaches the same account.
+
+With no Firebase values the button is disabled with a clear note and the API
+refuses Google sign-in. The app does not pretend to offer another way in.
+
+The password endpoints (`/auth/register`, `/auth/login`, `/auth/password/*`) are
+kept for local seeding, the smoke script and the automated tests. The server
+returns `404 NOT_FOUND` for them when `NODE_ENV=production`, so a deployed
+instance has exactly one way in. Seed and run the demo against a development
+server (`npm run db:seed && npm run dev`).
 
 ---
 
@@ -108,7 +120,7 @@ API refuses Google sign-in; email and password sign-in keeps working.
 | `npm run dev` | Start dev servers (client + server) |
 | `npm run build` | Production build |
 | `npm run verify` | Typecheck + Lint + Test + Build |
-| `npm test` | Unit/integration tests (195 passing) |
+| `npm test` | Unit/integration tests (201 passing) |
 | `npm run db:generate` | Generate Drizzle migrations |
 | `npm run db:migrate` | Run migrations |
 | `npm run smoke` | Smoke test against running instance |

@@ -10,15 +10,12 @@ import { CalendarPage } from './pages/Calendar';
 import { CategoriesPage } from './pages/Categories';
 import { CreateOrganizationPage } from './pages/CreateOrganization';
 import { DashboardPage } from './pages/Dashboard';
-import { ForgotPasswordPage } from './pages/ForgotPassword';
 import { ImportsPage } from './pages/Imports';
 import { IntegrationsPage } from './pages/Integrations';
 import { LoginPage } from './pages/Login';
 import { NotFoundPage } from './pages/NotFound';
-import { RegisterPage } from './pages/Register';
 import { RemindersDuePage } from './pages/RemindersDue';
 import { RemindersPage } from './pages/Reminders';
-import { ResetPasswordPage } from './pages/ResetPassword';
 import { SettingsPage } from './pages/Settings';
 import { SubscriptionDetailPage } from './pages/SubscriptionDetail';
 import { SubscriptionEditorPage } from './pages/SubscriptionEditor';
@@ -111,9 +108,9 @@ export function AppRouter() {
     <SessionProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
+        <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
+        <Route path="/reset-password" element={<Navigate to="/login" replace />} />
         <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
         <Route path="/welcome" element={<RequireSession><CreateOrganizationPage /></RequireSession>} />
         <Route path="/dashboard" element={<RequireSession><RedirectToFirstOrganization /></RequireSession>} />
