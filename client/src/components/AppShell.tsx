@@ -6,6 +6,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { classNames } from '../lib/format';
 import { useSession } from '../lib/session';
 import { Button } from './ui';
+import { ThemeToggle } from './ThemeToggle';
 
 interface NavItem {
   to: string;
@@ -96,8 +97,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           end={false}
           className={({ isActive }) =>
             classNames(
-              'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium no-underline transition-colors',
-              isActive ? 'bg-brand-50 text-brand-700' : 'text-ink-muted hover:bg-surface-sunken hover:text-ink',
+              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold no-underline transition-colors',
+              isActive ? 'bg-brand-500 text-white shadow-sm' : 'text-ink-muted hover:bg-brand-50 hover:text-brand-700',
             )
           }
         >
@@ -109,23 +110,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-surface-sunken">
       <a href="#main" className="skip-link">
         Skip to main content
       </a>
 
       {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-white lg:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-surface-raised lg:flex">
         <Brand organizationName={activeOrganization?.organizationName ?? 'RenewRadar'} />
         {navigation}
-        <footer className="border-t border-line p-3 text-xs text-ink-subtle">
+        <footer className="border-t border-line p-4 text-xs text-ink-subtle">
           RenewRadar records what you decide. It cannot cancel a contract with a
           vendor, and it stores no card details.
         </footer>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white/95 px-4 py-2.5 backdrop-blur">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-surface-raised/95 px-5 py-3 backdrop-blur">
           <Button
             variant="ghost"
             size="sm"
@@ -147,6 +148,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           />
 
           <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
             <ProfileMenu
               name={user?.displayName ?? ''}
               email={user?.email ?? ''}
@@ -157,12 +159,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {mobileNavOpen ? (
-          <div id="mobile-nav" className="border-b border-line bg-white lg:hidden">
+          <div id="mobile-nav" className="border-b border-line bg-surface-raised lg:hidden">
             {navigation}
           </div>
         ) : null}
 
-        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
+        <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 sm:px-8">
           {children}
         </main>
       </div>
@@ -173,12 +175,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function Brand({ organizationName }: { organizationName: string }) {
   return (
     <div className="flex items-center gap-2 px-4 py-4">
-      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-[13px] font-bold text-white">
-        R
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-500 text-white">
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true"><path d="M5 15a7 7 0 1 1 2 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M5 10V5h5M19 9a7 7 0 0 1-2 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold text-ink">RenewRadar</span>
-        <span className="block truncate text-xs text-ink-subtle">{organizationName}</span>
+        <span className="block truncate text-sm font-bold text-ink">RenewRadar</span>
+        <span className="block truncate text-xs text-brand-700">{organizationName} · your calm control room</span>
       </span>
     </div>
   );
